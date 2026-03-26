@@ -100,6 +100,16 @@ build $target_image=image_name $tag=default_tag:
         --tag "${target_image}:${tag}" \
         .
 
+# Build Image with GHCR Flag
+[group('Image')]
+build-ghcr image="bluefin" tag="latest" flavor="main" kernel_pin="":
+    #!/usr/bin/bash
+    if [[ "${UID}" -gt "0" ]]; then
+        echo "Must Run with sudo or as root..."
+        exit 1
+    fi
+    {{ just }} build {{ image }} {{ tag }}
+
 # Command: _rootful_load_image
 # Description: This script checks if the current user is root or running under sudo. If not, it attempts to resolve the image tag using podman inspect.
 #              If the image is found, it loads it into rootful podman. If the image is not found, it pulls it from the repository.
