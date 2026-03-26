@@ -149,17 +149,19 @@ jobs:
         with:
           syft-version: v1.20.0
       
-      # Debug
-      - name: Debug- Podman Images
-        run: podman images
-      
       - name: Generate SBOM
         id: generate-sbom
         env:
           IMAGE: ${{ env.IMAGE_NAME }}
           DEFAULT_TAG: ${{ env.DEFAULT_TAG }}
           SYFT_CMD: ${{ steps.setup-syft.outputs.cmd }}
+          OCI_DIR: "/tmp/image-oci-dir"
         run: |
+          mkdir -p ${OCI_DIR}/rootfs
+          podman container create --replace --name "${IMAGE}" "localhost/${IMAGE}:${DEFAULT_TAG}"
+          podman export "${IMAGE}" | tar -C ${OCI_DIR}/rootfs -xf -
+          podman container rm "${IMAGE}"
+
           OUTPUT_PATH="$(mktemp -d)/sbom.json"
           export SYFT_PARALLELISM=$(($(nproc)*2))
           $SYFT_CMD ${IMAGE}:${DEFAULT_TAG} -o spdx-json=${OUTPUT_PATH}
