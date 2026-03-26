@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
 
 env:
-  IMAGE_DESC: "My Customized Universal Blue Image"
+  IMAGE_DESC: "ifin does ifin things"
   IMAGE_KEYWORDS: "bootc,ublue,universal-blue"
   IMAGE_LOGO_URL: "https://avatars.githubusercontent.com/u/120078124?s=200&v=4"  # Put your own image here for a fancy profile on https://artifacthub.io/!
   IMAGE_NAME: "${{ github.event.repository.name }}"  # output image name, usually same as repo name
@@ -22,7 +22,7 @@ env:
   DEFAULT_TAG: "stable"
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}-${{ inputs.brand_name}}-${{ inputs.stream_name }}
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}-${IMAGE_NAME}-${DEFAULT_TAG}
   cancel-in-progress: true
 
 jobs:
@@ -34,6 +34,12 @@ jobs:
       contents: read
       packages: write
       id-token: write
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        base_name: ["${IMAGE_NAME}"]
+        stream_name: ["${DEFAULT_TAG}"]
 
     steps:
       - name: Prepare environment
@@ -106,33 +112,20 @@ jobs:
           sep-annotations: " "
 
       - name: Build Image
-        id: build_image
-        uses: redhat-actions/buildah-build@7a95fa7ee0f02d552a32753e7414641a04307056 # v2
-        with:
-          containerfiles: |
-            ./Containerfile
-          # Postfix image name with -custom to make it a little more descriptive
-          # Syntax: https://docs.github.com/en/actions/learn-github-actions/expressions#format
-          image: ${{ env.IMAGE_NAME }}
-          tags: ${{ env.DEFAULT_TAG }}
-          labels: ${{ steps.metadata.outputs.labels }}
-          oci: false
-
-      # - name: Rechunk Image
-      #   run: |
-      #     sudo podman run --rm --privileged \
-      #       -v /var/lib/containers:/var/lib/containers \
-      #       --entrypoint /usr/libexec/bootc-base-imagectl \
-      #       "localhost/${IMAGE_NAME}:${DEFAULT_TAG}" \
-      #       rechunk --max-layers 96 \
-      #       "localhost/${IMAGE_NAME}:${DEFAULT_TAG}" \
-      #       "localhost/${IMAGE_NAME}:${DEFAULT_TAG}"
+        id: build-image
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          sudo -E $(command -v just) repo_organization="${{ github.repository_owner }}" \
+                    build-ghcr "${{ matrix.base_name }}" \
+                               "${{ matrix.stream_name }}"
 
       # Tag for registry
       - name: Tag for registry
         run: |
           for tag in ${{ steps.metadata.outputs.tags }}; do
-            podman tag ${{ env.IMAGE_NAME }}:${{ env.DEFAULT_TAG }} ${{ env.IMAGE_NAME }}:$tag
+            sudo podman tag ${{ env.IMAGE_NAME }}:${{ env.DEFAULT_TAG }} ${{ env.IMAGE_NAME }}:$tag
           done
 
       # SBOM (OPTIONAL): Software Bill of Materials generation using Syft
@@ -167,6 +160,16 @@ jobs:
           sudo $SYFT_CMD --source-name "${IMAGE}"-"${DEFAULT_TAG}" ${OCI_DIR} -o spdx-json=${OUTPUT_PATH}
           echo "OUTPUT_PATH=${OUTPUT_PATH}" >> $GITHUB_OUTPUT
           sudo rm -rf ${OCI_DIR}
+      
+      - name: Rechunk Image
+        id: rechunk-image
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          sudo -E $(command -v just) rechunk "${{ matrix.base_name }}" \
+                            "${{ matrix.stream_name }}" \
+                            "1"
 
       # These `if` statements are so that pull requests for your custom images do not make it publish any packages under your name without you knowing
       # They also check if the runner is on the default branch so that things like the merge queue (if you enable it), are going to work
