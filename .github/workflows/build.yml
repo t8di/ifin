@@ -158,14 +158,15 @@ jobs:
           OCI_DIR: "/tmp/image-oci-dir"
         run: |
           mkdir -p ${OCI_DIR}/rootfs
-          podman container create --replace --name "${IMAGE}" "localhost/${IMAGE}:${DEFAULT_TAG}"
-          podman export "${IMAGE}" | tar -C ${OCI_DIR}/rootfs -xf -
-          podman container rm "${IMAGE}"
+          sudo podman container create --replace --name "${IMAGE}" "localhost/${IMAGE}:${DEFAULT_TAG}"
+          sudo podman export "${IMAGE}" | sudo tar -C ${OCI_DIR}/rootfs -xf -
+          sudo podman container rm "${IMAGE}"
 
           OUTPUT_PATH="$(mktemp -d)/sbom.json"
           export SYFT_PARALLELISM=$(($(nproc)*2))
-          $SYFT_CMD ${IMAGE}:${DEFAULT_TAG} -o spdx-json=${OUTPUT_PATH}
+          sudo $SYFT_CMD --source-name "${IMAGE}"-"${DEFAULT_TAG}" ${OCI_DIR} -o spdx-json=${OUTPUT_PATH}
           echo "OUTPUT_PATH=${OUTPUT_PATH}" >> $GITHUB_OUTPUT
+          sudo rm -rf ${OCI_DIR}
 
       # These `if` statements are so that pull requests for your custom images do not make it publish any packages under your name without you knowing
       # They also check if the runner is on the default branch so that things like the merge queue (if you enable it), are going to work
