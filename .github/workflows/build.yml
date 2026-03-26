@@ -151,7 +151,7 @@ jobs:
       
       # Debug
       - name: Debug- Podman Images
-        run: sudo podman images
+        run: podman images
       
       - name: Generate SBOM
         id: generate-sbom
