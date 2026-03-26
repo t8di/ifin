@@ -149,6 +149,10 @@ jobs:
         with:
           syft-version: v1.20.0
       
+      # Debug
+      - name: Debug- Podman Images
+        run: sudo podman images
+      
       - name: Generate SBOM
         id: generate-sbom
         env:
